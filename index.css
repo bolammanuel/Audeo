@@ -749,6 +749,76 @@ body.light-mode .record-button.recording .record-button-inner { color: white; }
 }
 
 /* Smartwatch and Micro-device Support (e.g. Apple Watch, small cover screens) */
+/* Share Toast */
+.share-toast {
+  position: fixed;
+  bottom: 140px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 12px 24px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.share-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.share-toast-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.share-toast-content i {
+  color: var(--color-accent);
+}
+
+.header-action-btn#shareButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Shared View Styles */
+body.shared-view .recording-interface,
+body.shared-view .history-sidebar,
+body.shared-view .sidebar-overlay,
+body.shared-view #shareButton,
+body.shared-view .tab-navigation-container,
+body.shared-view #editorTitle[contenteditable="true"],
+body.shared-view .note-content[contenteditable="true"],
+body.shared-view .tag-input-wrapper-main {
+  display: none !important;
+}
+
+body.shared-view .main-content {
+  padding-bottom: 0 !important;
+}
+
+body.shared-view .editor-title {
+  margin-right: 0;
+  cursor: default;
+}
+
+body.shared-view .note-area {
+  padding-top: 40px;
+}
+
+body.shared-view .note-header {
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: 20px;
+}
+
 @media (max-width: 280px) {
   .note-header {
     padding: 8px 12px;

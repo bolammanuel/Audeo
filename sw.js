@@ -1,4 +1,4 @@
-const CACHE_NAME = 'audeo-v1';
+const CACHE_NAME = 'audeo-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

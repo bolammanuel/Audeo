@@ -7,8 +7,14 @@
 import {GoogleGenAI} from '@google/genai';
 import {marked} from 'marked';
 import {jsPDF} from 'jspdf';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, setDoc, getDoc, collection, serverTimestamp } from 'firebase/firestore';
+import firebaseConfig from './firebase-applet-config.json';
 
 const MODEL_NAME = 'gemini-2.5-flash';
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 interface Note {
   id: string;
@@ -45,12 +51,14 @@ class VoiceNotesApp {
   private uploadButton: HTMLButtonElement;
   private audioUploadInput: HTMLInputElement;
   private rePolishButton: HTMLButtonElement;
+  private shareButton: HTMLButtonElement;
   private clearHistoryButton: HTMLButtonElement;
   private tagInput: HTMLInputElement;
   private currentTagsContainer: HTMLDivElement;
   private historySearch: HTMLInputElement;
   private filterTagsContainer: HTMLDivElement;
   private activeFilterTags: Set<string> = new Set();
+  private hasUnsavedChanges = false;
   private autoSaveTimeout: number | null = null;
   private hasAttemptedPermission = false;
 
@@ -128,6 +136,9 @@ class VoiceNotesApp {
     this.rePolishButton = document.getElementById(
       'rePolishButton',
     ) as HTMLButtonElement;
+    this.shareButton = document.getElementById(
+      'shareButton',
+    ) as HTMLButtonElement;
     this.clearHistoryButton = document.getElementById(
       'clearHistoryButton',
     ) as HTMLButtonElement;
@@ -174,6 +185,7 @@ class VoiceNotesApp {
 
     this.bindEventListeners();
     this.initTheme();
+    this.checkSharedNote();
     this.createNewNote();
 
     this.recordingStatus.textContent = 'Ready to record';
@@ -187,6 +199,7 @@ class VoiceNotesApp {
     this.uploadButton.addEventListener('click', () => this.audioUploadInput.click());
     this.audioUploadInput.addEventListener('change', (e) => this.handleFileUpload(e));
     this.rePolishButton.addEventListener('click', () => this.getPolishedNote());
+    this.shareButton.addEventListener('click', () => this.shareNote());
     this.clearHistoryButton.addEventListener('click', () => this.clearAllHistory());
     this.historyToggleButton.addEventListener('click', () =>
       this.toggleHistory(true),
@@ -199,6 +212,12 @@ class VoiceNotesApp {
     );
     this.themeToggleButton.addEventListener('click', () => this.toggleTheme());
     window.addEventListener('resize', this.handleResize.bind(this));
+    window.addEventListener('beforeunload', (e) => {
+      if (this.hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = ''; // Standard way to show confirmation dialog
+      }
+    });
 
     this.editorTitle.addEventListener('input', () => {
       if (this.currentNote) {
@@ -944,14 +963,17 @@ class VoiceNotesApp {
     
     if (isAutoSave) {
       console.log('Auto-saved note');
+      this.hasUnsavedChanges = false;
       // Briefly show auto-save status if needed, but not too distracting
     } else {
+      this.hasUnsavedChanges = false;
       this.recordingStatus.textContent = 'Note saved to history';
       this.renderHistory();
     }
   }
 
   private triggerAutoSave(): void {
+    this.hasUnsavedChanges = true;
     if (this.autoSaveTimeout) {
       clearTimeout(this.autoSaveTimeout);
     }
@@ -1216,6 +1238,121 @@ class VoiceNotesApp {
       this.renderHistory();
       this.createNewNote();
       this.recordingStatus.textContent = 'Note history cleared';
+    }
+  }
+
+  private async shareNote(): Promise<void> {
+    if (!this.currentNote) return;
+
+    const title = this.editorTitle.textContent?.trim() || 'Untitled Note';
+    const polishedContent = this.polishedNote.classList.contains('placeholder-active')
+      ? ''
+      : this.polishedNote.innerHTML || '';
+
+    if (!polishedContent) {
+      this.recordingStatus.textContent = 'Nothing to share - please transcribe first';
+      return;
+    }
+
+    this.shareButton.disabled = true;
+    this.recordingStatus.textContent = 'Generating share link...';
+
+    try {
+      const noteId = `share_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const sharedNoteRef = doc(db, 'sharedNotes', noteId);
+
+      const sharedData = {
+        title: title,
+        polishedNote: polishedContent,
+        tags: this.currentNote.tags,
+        timestamp: Date.now(),
+        createdAt: serverTimestamp()
+      };
+
+      await setDoc(sharedNoteRef, sharedData);
+
+      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${noteId}`;
+      
+      // Copy to clipboard
+      await navigator.clipboard.writeText(shareUrl);
+
+      // Show toast
+      const toast = document.getElementById('shareToast');
+      if (toast) {
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+      }
+
+      this.recordingStatus.textContent = 'Share link copied to clipboard!';
+    } catch (err) {
+      console.error('Error sharing note:', err);
+      this.recordingStatus.textContent = 'Error generating share link';
+    } finally {
+      this.shareButton.disabled = false;
+    }
+  }
+
+  private async checkSharedNote(): Promise<void> {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get('share');
+
+    if (shareId) {
+      document.body.classList.add('shared-view');
+      this.recordingStatus.textContent = 'Loading shared note...';
+
+      try {
+        const noteRef = doc(db, 'sharedNotes', shareId);
+        const noteSnap = await getDoc(noteRef);
+
+        if (noteSnap.exists()) {
+          const data = noteSnap.data();
+          
+          if (this.editorTitle) {
+            this.editorTitle.textContent = data.title || 'Shared Note';
+            this.editorTitle.classList.remove('placeholder-active');
+            this.editorTitle.setAttribute('contenteditable', 'false');
+          }
+
+          this.polishedNote.innerHTML = data.polishedNote || '';
+          this.polishedNote.classList.remove('placeholder-active');
+          this.polishedNote.setAttribute('contenteditable', 'false');
+
+          // Highlight shared view
+          this.recordingStatus.textContent = 'Viewing shared note';
+          
+          if (this.newButton) {
+              this.newButton.innerHTML = '<i class="fas fa-home"></i>';
+              this.newButton.title = 'Go to my notes';
+              this.newButton.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  window.location.href = window.location.origin + window.location.pathname;
+              });
+          }
+
+          // Format tags if any
+          if (data.tags && Array.isArray(data.tags)) {
+            this.currentNote = {
+              id: 'shared',
+              title: data.title,
+              rawTranscription: '',
+              polishedNote: data.polishedNote,
+              timestamp: data.timestamp,
+              tags: data.tags
+            };
+            this.renderCurrentTags();
+            // Tags will be rendered, we should hide remove icons in CSS or here
+            setTimeout(() => {
+                this.currentTagsContainer.querySelectorAll('.remove-tag').forEach(i => (i as HTMLElement).style.display = 'none');
+            }, 100);
+          }
+        } else {
+          this.recordingStatus.textContent = 'Shared note not found';
+          this.polishedNote.innerHTML = '<h1>Note Not Found</h1><p>The shared note you are looking for does not exist or has been removed.</p>';
+        }
+      } catch (err) {
+        console.error('Error loading shared note:', err);
+        this.recordingStatus.textContent = 'Error loading shared note';
+      }
     }
   }
 
