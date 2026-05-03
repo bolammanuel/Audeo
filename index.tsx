@@ -48,6 +48,7 @@ class VoiceNotesApp {
   private currentNote: Note | null = null;
   private stream: MediaStream | null = null;
   private editorTitle: HTMLDivElement;
+  private copyButton: HTMLButtonElement;
   private exportButton: HTMLButtonElement;
   private exportTxtButton: HTMLButtonElement;
   private exportPdfButton: HTMLButtonElement;
@@ -126,6 +127,9 @@ class VoiceNotesApp {
     this.editorTitle = document.getElementById(
       'editorTitle',
     ) as HTMLDivElement;
+    this.copyButton = document.getElementById(
+      'copyButton',
+    ) as HTMLButtonElement;
     this.exportButton = document.getElementById(
       'exportButton',
     ) as HTMLButtonElement;
@@ -224,6 +228,7 @@ class VoiceNotesApp {
   private bindEventListeners(): void {
     this.recordButton.addEventListener('click', () => this.toggleRecording());
     this.newButton.addEventListener('click', () => this.createNewNote());
+    this.copyButton.addEventListener('click', () => this.copyNote());
     this.exportTxtButton.addEventListener('click', () => this.exportNote());
     this.exportPdfButton.addEventListener('click', () => this.exportPdf());
     this.uploadButton.addEventListener('click', () => this.audioUploadInput.click());
@@ -938,6 +943,42 @@ class VoiceNotesApp {
     }
 
     this.pushToUndoStack();
+  }
+
+  private copyNote(): void {
+    if (!this.currentNote) return;
+
+    // Ensure current content is saved to state
+    const title = this.editorTitle.textContent?.trim() || 'Untitled Note';
+    const rawContent =
+      this.rawTranscription.classList.contains('placeholder-active')
+        ? ''
+        : this.rawTranscription.textContent || '';
+    const polishedContent =
+      this.polishedNote.classList.contains('placeholder-active')
+        ? ''
+        : this.polishedNote.innerHTML || '';
+
+    const newNote: Note = {
+      id: `note_${Date.now()}`,
+      title: `${title} (Copy)`,
+      rawTranscription: rawContent,
+      polishedNote: polishedContent,
+      timestamp: Date.now(),
+      tags: [...this.currentNote.tags],
+    };
+
+    const history = this.getHistory();
+    history.unshift(newNote);
+    localStorage.setItem('notes_history', JSON.stringify(history));
+
+    this.loadNote(newNote);
+    this.recordingStatus.textContent = 'Note duplicated!';
+    this.renderHistory();
+    
+    // Add visual feedback
+    this.copyButton.classList.add('success-flash');
+    setTimeout(() => this.copyButton.classList.remove('success-flash'), 1000);
   }
 
   private saveCurrentNote(isAutoSave = false): void {

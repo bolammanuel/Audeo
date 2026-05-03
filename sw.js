@@ -1,6 +1,7 @@
-const CACHE_NAME = 'audeo-v3';
+const CACHE_NAME = 'audeo-v4';
 const ASSETS = [
   '/',
+  '/?utm_source=pwa',
   '/index.html',
   '/index.css',
   '/icon.svg',

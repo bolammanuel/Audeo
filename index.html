@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#121212">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json?v=3">
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
     <link rel="apple-touch-icon" href="/icon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -53,6 +53,9 @@
                     <button id="exportPdf">PDF (.pdf)</button>
                   </div>
                 </div>
+                <button class="header-action-btn" id="copyButton" title="Copy Note (Duplicate)">
+                  <i class="fas fa-copy"></i>
+                </button>
                 <button class="header-action-btn" id="undoButton" title="Undo (Ctrl+Z)">
                   <i class="fas fa-undo"></i>
                 </button>

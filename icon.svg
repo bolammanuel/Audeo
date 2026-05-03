@@ -1,21 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <style>
-    :root {
-      --bg: #ffffff;
-      --fg: #000000;
-    }
     @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #000000;
-        --fg: #ffffff;
-      }
+      .bg { fill: #000000; }
+      .fg { fill: #ffffff; }
     }
-    .background { fill: var(--bg); }
-    .icon { fill: var(--fg); }
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #ffffff; }
+      .fg { fill: #000000; }
+    }
+    .bg { fill: #000000; transition: fill 0.3s ease; }
+    .fg { fill: #ffffff; transition: fill 0.3s ease; }
   </style>
-  <rect class="background" width="512" height="512"/>
-  <g class="icon">
-    <path d="M256 320c44.2 0 80-35.8 80-80V112c0-44.2-35.8-80-80-80s-80 35.8-80 80v128c0 44.2 35.8 80 80 80z"/>
-    <path d="M384 240c0 70.7-57.3 128-128 128s-128-57.3-128-128h-32c0 81.3 61.1 148.4 140 158.3V448h-60v32h152v-32h-60v-49.7c78.9-9.9 140-77 140-158.3h-32z"/>
-  </g>
+  <rect class="bg" width="512" height="512" rx="100"/>
+  <path class="fg" d="M128 192h32v128h-32zM192 128h32v256h-32zM256 160h32v192h-32zM320 96h32v320h-32zM384 192h32v128h-32z"/>
 </svg>
