@@ -45,6 +45,7 @@ class VoiceNotesApp {
   private uploadButton: HTMLButtonElement;
   private audioUploadInput: HTMLInputElement;
   private rePolishButton: HTMLButtonElement;
+  private clearHistoryButton: HTMLButtonElement;
   private tagInput: HTMLInputElement;
   private currentTagsContainer: HTMLDivElement;
   private historySearch: HTMLInputElement;
@@ -127,6 +128,9 @@ class VoiceNotesApp {
     this.rePolishButton = document.getElementById(
       'rePolishButton',
     ) as HTMLButtonElement;
+    this.clearHistoryButton = document.getElementById(
+      'clearHistoryButton',
+    ) as HTMLButtonElement;
     this.tagInput = document.getElementById('tagInput') as HTMLInputElement;
     this.currentTagsContainer = document.getElementById(
       'currentTags',
@@ -183,6 +187,7 @@ class VoiceNotesApp {
     this.uploadButton.addEventListener('click', () => this.audioUploadInput.click());
     this.audioUploadInput.addEventListener('change', (e) => this.handleFileUpload(e));
     this.rePolishButton.addEventListener('click', () => this.getPolishedNote());
+    this.clearHistoryButton.addEventListener('click', () => this.clearAllHistory());
     this.historyToggleButton.addEventListener('click', () =>
       this.toggleHistory(true),
     );
@@ -202,7 +207,12 @@ class VoiceNotesApp {
       }
     });
 
-    this.rawTranscription.addEventListener('input', () => this.triggerAutoSave());
+    this.rawTranscription.addEventListener('input', () => {
+      this.triggerAutoSave();
+      if (!this.rawTranscription.classList.contains('placeholder-active')) {
+        this.rePolishButton.classList.add('needs-refresh');
+      }
+    });
     this.polishedNote.addEventListener('input', () => this.triggerAutoSave());
 
     this.tagInput.addEventListener('keydown', (e) => {
@@ -754,6 +764,7 @@ class VoiceNotesApp {
       const polishedText = response.text;
 
       if (polishedText) {
+        this.rePolishButton.classList.remove('needs-refresh');
         const htmlContent = marked.parse(polishedText);
         this.polishedNote.innerHTML = htmlContent;
         if (polishedText.trim() !== '') {
@@ -1196,6 +1207,18 @@ class VoiceNotesApp {
     }
   }
 
+  private clearAllHistory(): void {
+    const history = this.getHistory();
+    if (history.length === 0) return;
+
+    if (window.confirm('Are you sure you want to clear your entire note history? This action cannot be undone.')) {
+      localStorage.removeItem('notes_history');
+      this.renderHistory();
+      this.createNewNote();
+      this.recordingStatus.textContent = 'Note history cleared';
+    }
+  }
+
   private stripHtml(html: string): string {
     const tmp = document.createElement('DIV');
     tmp.innerHTML = html;
@@ -1205,6 +1228,15 @@ class VoiceNotesApp {
 
 document.addEventListener('DOMContentLoaded', () => {
   new VoiceNotesApp();
+
+  // Register Service Worker for PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('SW registered:', reg))
+        .catch(err => console.log('SW registration failed:', err));
+    });
+  }
 
   document
     .querySelectorAll<HTMLElement>('[contenteditable][placeholder]')

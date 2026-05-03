@@ -1,0 +1,17 @@
+{
+  "name": "Audeo",
+  "short_name": "Audeo",
+  "description": "Smart dictation and audio transcription",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#82aaff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5988/5988246.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -3,22 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dictation App</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <title>Audeo</title>
+    <meta name="theme-color" content="#121212">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/5988/5988246.png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/5988/5988246.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/genai": "https://esm.sh/@google/genai@^0.8.0",
-          "marked": "https://esm.sh/marked@^4.0.0"
-        }
-      }
-    </script>
-  <link rel="stylesheet" href="/index.css">
+    <link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div class="app-container">
@@ -127,9 +126,14 @@
       <div id="historySidebar" class="history-sidebar">
         <div class="sidebar-header">
           <h3>History</h3>
-          <button id="closeHistoryButton" class="close-sidebar-btn">
-            <i class="fas fa-times"></i>
-          </button>
+          <div class="sidebar-header-actions">
+            <button id="clearHistoryButton" class="clear-history-btn" title="Clear all history">
+              <i class="fas fa-trash-sweep"></i>
+            </button>
+            <button id="closeHistoryButton" class="close-sidebar-btn">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
         </div>
         <div class="sidebar-search-area">
           <div class="search-box">
