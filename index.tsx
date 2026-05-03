@@ -4,14 +4,11 @@
 */
 /* tslint:disable */
 
-import {GoogleGenAI} from '@google/genai';
 import {marked} from 'marked';
 import {jsPDF} from 'jspdf';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, collection, serverTimestamp } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
-
-const MODEL_NAME = 'gemini-2.5-flash';
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -25,8 +22,14 @@ interface Note {
   tags: string[];
 }
 
+interface AppState {
+  title: string;
+  raw: string;
+  polished: string;
+  tags: string[];
+}
+
 class VoiceNotesApp {
-  private genAI: any;
   private mediaRecorder: MediaRecorder | null = null;
   private recordButton: HTMLButtonElement;
   private recordingStatus: HTMLDivElement;
@@ -50,8 +53,11 @@ class VoiceNotesApp {
   private exportPdfButton: HTMLButtonElement;
   private uploadButton: HTMLButtonElement;
   private audioUploadInput: HTMLInputElement;
-  private rePolishButton: HTMLButtonElement;
   private shareButton: HTMLButtonElement;
+  private undoButton: HTMLButtonElement;
+  private redoButton: HTMLButtonElement;
+  private playPlaybackButton: HTMLButtonElement;
+  private saveSharedToLocalButton: HTMLButtonElement;
   private clearHistoryButton: HTMLButtonElement;
   private tagInput: HTMLInputElement;
   private currentTagsContainer: HTMLDivElement;
@@ -61,6 +67,11 @@ class VoiceNotesApp {
   private hasUnsavedChanges = false;
   private autoSaveTimeout: number | null = null;
   private hasAttemptedPermission = false;
+  private lastRecordedAudio: Blob | null = null;
+  private playbackAudio: HTMLAudioElement | null = null;
+  private undoStack: AppState[] = [];
+  private redoStack: AppState[] = [];
+  private isPushingToStack = false;
 
   private recordingInterface: HTMLDivElement;
   private liveRecordingTitle: HTMLDivElement;
@@ -77,11 +88,6 @@ class VoiceNotesApp {
   private recordingStartTime: number = 0;
 
   constructor() {
-    this.genAI = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY!,
-      apiVersion: 'v1alpha',
-    });
-
     this.recordButton = document.getElementById(
       'recordButton',
     ) as HTMLButtonElement;
@@ -133,11 +139,20 @@ class VoiceNotesApp {
     this.audioUploadInput = document.getElementById(
       'audioUploadInput',
     ) as HTMLInputElement;
-    this.rePolishButton = document.getElementById(
-      'rePolishButton',
-    ) as HTMLButtonElement;
     this.shareButton = document.getElementById(
       'shareButton',
+    ) as HTMLButtonElement;
+    this.undoButton = document.getElementById(
+      'undoButton',
+    ) as HTMLButtonElement;
+    this.redoButton = document.getElementById(
+      'redoButton',
+    ) as HTMLButtonElement;
+    this.playPlaybackButton = document.getElementById(
+      'playPlaybackButton',
+    ) as HTMLButtonElement;
+    this.saveSharedToLocalButton = document.getElementById(
+      'saveSharedToLocalButton',
     ) as HTMLButtonElement;
     this.clearHistoryButton = document.getElementById(
       'clearHistoryButton',
@@ -185,10 +200,20 @@ class VoiceNotesApp {
 
     this.bindEventListeners();
     this.initTheme();
-    this.checkSharedNote();
-    this.createNewNote();
+    
+    this.initializeAppState();
 
     this.recordingStatus.textContent = 'Ready to record';
+  }
+
+  private async initializeAppState(): Promise<void> {
+    const isShared = await this.checkSharedNote();
+    if (isShared) return;
+    
+    const isRestored = this.restoreDraft();
+    if (isRestored) return;
+    
+    this.createNewNote();
   }
 
   private bindEventListeners(): void {
@@ -198,9 +223,15 @@ class VoiceNotesApp {
     this.exportPdfButton.addEventListener('click', () => this.exportPdf());
     this.uploadButton.addEventListener('click', () => this.audioUploadInput.click());
     this.audioUploadInput.addEventListener('change', (e) => this.handleFileUpload(e));
-    this.rePolishButton.addEventListener('click', () => this.getPolishedNote());
     this.shareButton.addEventListener('click', () => this.shareNote());
+    this.undoButton.addEventListener('click', () => this.undo());
+    this.redoButton.addEventListener('click', () => this.redo());
+    this.playPlaybackButton.addEventListener('click', () => this.togglePlayback());
+    this.saveSharedToLocalButton.addEventListener('click', () => this.saveSharedToLocal());
     this.clearHistoryButton.addEventListener('click', () => this.clearAllHistory());
+    document.getElementById('dismissDraft')?.addEventListener('click', () => {
+        document.getElementById('draftToast')?.classList.remove('show');
+    });
     this.historyToggleButton.addEventListener('click', () =>
       this.toggleHistory(true),
     );
@@ -223,16 +254,30 @@ class VoiceNotesApp {
       if (this.currentNote) {
         this.currentNote.title = this.editorTitle.textContent?.trim() || '';
         this.triggerAutoSave();
+        this.debouncedHistoryPush();
       }
     });
 
     this.rawTranscription.addEventListener('input', () => {
       this.triggerAutoSave();
-      if (!this.rawTranscription.classList.contains('placeholder-active')) {
-        this.rePolishButton.classList.add('needs-refresh');
+      this.debouncedHistoryPush();
+    });
+    this.polishedNote.addEventListener('input', () => {
+      this.triggerAutoSave();
+      this.debouncedHistoryPush();
+    });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        this.undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        this.redo();
       }
     });
-    this.polishedNote.addEventListener('input', () => this.triggerAutoSave());
 
     this.tagInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -367,7 +412,11 @@ class VoiceNotesApp {
       getComputedStyle(document.documentElement)
         .getPropertyValue('--color-recording')
         .trim() || '#ff3b30';
-    ctx.fillStyle = recordingColor;
+    
+    const accentColor = 
+      getComputedStyle(document.documentElement)
+        .getPropertyValue('--color-accent')
+        .trim() || '#82aaff';
 
     for (let i = 0; i < numBars; i++) {
       if (x >= logicalWidth) break;
@@ -381,9 +430,42 @@ class VoiceNotesApp {
 
       const y = Math.round((logicalHeight - barHeight) / 2);
 
+      // Enhanced styling: Color shift based on amplitude
+      if (barHeightNormalized > 0.8) {
+          ctx.fillStyle = '#ff3b30'; // Loud - Warning Red
+      } else if (barHeightNormalized > 0.4) {
+          ctx.fillStyle = accentColor; // Medium - Accent Blue
+      } else {
+          ctx.fillStyle = recordingColor; // Normal - Recording Red
+      }
+
+      // Add a subtle gradient effect per bar
+      const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
+      const baseColor = ctx.fillStyle as string;
+      gradient.addColorStop(0, baseColor);
+      gradient.addColorStop(1, this.adjustColor(baseColor, -20));
+      ctx.fillStyle = gradient;
+
       ctx.fillRect(Math.floor(x), y, barWidth, barHeight);
       x += barWidth + barSpacing;
     }
+  }
+
+  private adjustColor(color: string, amount: number): string {
+    // If it's a hex color, shift it
+    if (color.startsWith('#')) {
+      const num = parseInt(color.slice(1), 16);
+      let r = (num >> 16) + amount;
+      let g = ((num >> 8) & 0x00FF) + amount;
+      let b = (num & 0x0000FF) + amount;
+      
+      r = Math.max(0, Math.min(255, r));
+      g = Math.max(0, Math.min(255, g));
+      b = Math.max(0, Math.min(255, b));
+      
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+    return color;
   }
 
   private updateLiveTimer(): void {
@@ -505,6 +587,7 @@ class VoiceNotesApp {
   private async startRecording(): Promise<void> {
     try {
       this.audioChunks = [];
+      this.playPlaybackButton.classList.add('hidden');
       if (this.stream) {
         this.stream.getTracks().forEach((track) => track.stop());
         this.stream = null;
@@ -642,37 +725,18 @@ class VoiceNotesApp {
       return;
     }
 
+    this.lastRecordedAudio = audioBlob;
+    this.playPlaybackButton.classList.remove('hidden');
+
     try {
-      this.recordingStatus.textContent = 'Converting audio...';
-
-      const base64Audio = await this.blobToBase64(audioBlob);
-
-      if (!base64Audio) throw new Error('Failed to convert audio to base64');
-
-      const mimeType = audioBlob.type || 'audio/webm';
-      await this.getTranscription(base64Audio, mimeType);
+      this.recordingStatus.textContent = 'Audio recorded. Manual notes can be added below.';
+      if (this.currentNote) {
+        this.saveCurrentNote(true);
+      }
     } catch (error) {
-      console.error('Error in processAudio:', error);
-      this.recordingStatus.textContent =
-        'Error processing recording. Please try again.';
+      console.error('Error handling recorded audio:', error);
+      this.recordingStatus.textContent = 'Error processing recording.';
     }
-  }
-
-  private blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        try {
-          const base64data = reader.result as string;
-          const base64Audio = base64data.split(',')[1];
-          resolve(base64Audio);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
   }
 
   private handleFileUpload(e: Event): void {
@@ -694,199 +758,103 @@ class VoiceNotesApp {
     base64Audio: string,
     mimeType: string,
   ): Promise<void> {
-    try {
-      this.recordingStatus.textContent = 'Getting transcription...';
-
-      const contents = [
-        {text: 'Generate a complete, detailed transcript of this audio.'},
-        {inlineData: {mimeType: mimeType, data: base64Audio}},
-      ];
-
-      const response = await this.genAI.models.generateContent({
-        model: MODEL_NAME,
-        contents: contents,
-      });
-
-      const transcriptionText = response.text;
-
-      if (transcriptionText) {
-        this.rawTranscription.textContent = transcriptionText;
-        if (transcriptionText.trim() !== '') {
-          this.rawTranscription.classList.remove('placeholder-active');
-        } else {
-          const placeholder =
-            this.rawTranscription.getAttribute('placeholder') || '';
-          this.rawTranscription.textContent = placeholder;
-          this.rawTranscription.classList.add('placeholder-active');
-        }
-
-        if (this.currentNote)
-          this.currentNote.rawTranscription = transcriptionText;
-        this.recordingStatus.textContent =
-          'Transcription complete. Polishing note...';
-        this.getPolishedNote().catch((err) => {
-          console.error('Error polishing note:', err);
-          this.recordingStatus.textContent =
-            'Error polishing note after transcription.';
-        });
-      } else {
-        this.recordingStatus.textContent =
-          'Transcription failed or returned empty.';
-        this.polishedNote.innerHTML =
-          '<p><em>Could not transcribe audio. Please try again.</em></p>';
-        this.rawTranscription.textContent =
-          this.rawTranscription.getAttribute('placeholder');
-        this.rawTranscription.classList.add('placeholder-active');
-      }
-    } catch (error) {
-      console.error('Error getting transcription:', error);
-      this.recordingStatus.textContent =
-        'Error getting transcription. Please try again.';
-      this.polishedNote.innerHTML = `<p><em>Error during transcription: ${error instanceof Error ? error.message : String(error)}</em></p>`;
-      this.rawTranscription.textContent =
-        this.rawTranscription.getAttribute('placeholder');
-      this.rawTranscription.classList.add('placeholder-active');
-    }
+    // AI feature removed
   }
 
   private async getPolishedNote(): Promise<void> {
-    try {
-      if (
-        !this.rawTranscription.textContent ||
-        this.rawTranscription.textContent.trim() === '' ||
-        this.rawTranscription.classList.contains('placeholder-active')
-      ) {
-        this.recordingStatus.textContent = 'No transcription to polish';
-        this.polishedNote.innerHTML =
-          '<p><em>No transcription available to polish.</em></p>';
-        const placeholder = this.polishedNote.getAttribute('placeholder') || '';
-        this.polishedNote.innerHTML = placeholder;
-        this.polishedNote.classList.add('placeholder-active');
+    // AI feature removed
+  }
+
+  private pushToUndoStack(): void {
+    if (this.isPushingToStack) return;
+
+    const currentState: AppState = {
+      title: this.editorTitle.textContent?.trim() || '',
+      raw: this.rawTranscription.textContent || '',
+      polished: this.polishedNote.innerHTML || '',
+      tags: this.currentNote ? [...this.currentNote.tags] : []
+    };
+
+    // Only push if different from last state
+    if (this.undoStack.length > 0) {
+      const lastState = this.undoStack[this.undoStack.length - 1];
+      if (lastState.title === currentState.title && 
+          lastState.raw === currentState.raw && 
+          lastState.polished === currentState.polished &&
+          JSON.stringify(lastState.tags) === JSON.stringify(currentState.tags)) {
         return;
       }
+    }
 
-      this.recordingStatus.textContent = 'Polishing note...';
+    this.undoStack.push(currentState);
+    if (this.undoStack.length > 50) this.undoStack.shift();
+    this.redoStack = []; // Clear redo stack on new action
+    this.updateUndoRedoButtons();
+  }
 
-      const prompt = `Take this raw transcription and create a polished, well-formatted note.
-                    Remove filler words (um, uh, like), repetitions, and false starts.
-                    Format any lists or bullet points properly. Use markdown formatting for headings, lists, etc.
-                    Maintain all the original content and meaning.
+  private undo(): void {
+    if (this.undoStack.length <= 1) return;
 
-                    Raw transcription:
-                    ${this.rawTranscription.textContent}`;
-      const contents = [{text: prompt}];
+    this.isPushingToStack = true;
+    const currentState = this.undoStack.pop()!;
+    this.redoStack.push(currentState);
 
-      const response = await this.genAI.models.generateContent({
-        model: MODEL_NAME,
-        contents: contents,
-      });
-      const polishedText = response.text;
+    const previousState = this.undoStack[this.undoStack.length - 1];
+    this.applyState(previousState);
+    
+    this.isPushingToStack = false;
+    this.updateUndoRedoButtons();
+  }
 
-      if (polishedText) {
-        this.rePolishButton.classList.remove('needs-refresh');
-        const htmlContent = marked.parse(polishedText);
-        this.polishedNote.innerHTML = htmlContent;
-        if (polishedText.trim() !== '') {
-          this.polishedNote.classList.remove('placeholder-active');
-        } else {
-          const placeholder =
-            this.polishedNote.getAttribute('placeholder') || '';
-          this.polishedNote.innerHTML = placeholder;
-          this.polishedNote.classList.add('placeholder-active');
-        }
+  private redo(): void {
+    if (this.redoStack.length === 0) return;
 
-        let noteTitleSet = false;
-        const lines = polishedText.split('\n').map((l) => l.trim());
+    this.isPushingToStack = true;
+    const state = this.redoStack.pop()!;
+    this.undoStack.push(state);
 
-        for (const line of lines) {
-          if (line.startsWith('#')) {
-            const title = line.replace(/^#+\s+/, '').trim();
-            if (this.editorTitle && title) {
-              this.editorTitle.textContent = title;
-              this.editorTitle.classList.remove('placeholder-active');
-              noteTitleSet = true;
-              break;
-            }
-          }
-        }
+    this.applyState(state);
 
-        if (!noteTitleSet && this.editorTitle) {
-          for (const line of lines) {
-            if (line.length > 0) {
-              let potentialTitle = line.replace(
-                /^[\*_\`#\->\s\[\]\(.\d)]+/,
-                '',
-              );
-              potentialTitle = potentialTitle.replace(/[\*_\`#]+$/, '');
-              potentialTitle = potentialTitle.trim();
+    this.isPushingToStack = false;
+    this.updateUndoRedoButtons();
+  }
 
-              if (potentialTitle.length > 3) {
-                const maxLength = 60;
-                this.editorTitle.textContent =
-                  potentialTitle.substring(0, maxLength) +
-                  (potentialTitle.length > maxLength ? '...' : '');
-                this.editorTitle.classList.remove('placeholder-active');
-                noteTitleSet = true;
-                break;
-              }
-            }
-          }
-        }
-
-        if (!noteTitleSet && this.editorTitle) {
-          const currentEditorText = this.editorTitle.textContent?.trim();
-          const placeholderText =
-            this.editorTitle.getAttribute('placeholder') || 'Untitled Note';
-          if (
-            currentEditorText === '' ||
-            currentEditorText === placeholderText
-          ) {
-            this.editorTitle.textContent = placeholderText;
-            if (!this.editorTitle.classList.contains('placeholder-active')) {
-              this.editorTitle.classList.add('placeholder-active');
-            }
-          }
-        }
-
-        if (this.currentNote) {
-          this.currentNote.polishedNote = htmlContent; // Use the HTML content for saving as we use it for display
-          this.currentNote.rawTranscription = this.rawTranscription.textContent || '';
-          this.saveCurrentNote(true);
-        }
-        this.recordingStatus.textContent =
-          'Note polished. Ready for next recording.';
-      } else {
-        this.recordingStatus.textContent =
-          'Polishing failed or returned empty.';
-        this.polishedNote.innerHTML =
-          '<p><em>Polishing returned empty. Raw transcription is available.</em></p>';
-        if (
-          this.polishedNote.textContent?.trim() === '' ||
-          this.polishedNote.innerHTML.includes('<em>Polishing returned empty')
-        ) {
-          const placeholder =
-            this.polishedNote.getAttribute('placeholder') || '';
-          this.polishedNote.innerHTML = placeholder;
-          this.polishedNote.classList.add('placeholder-active');
-        }
-      }
-    } catch (error) {
-      console.error('Error polishing note:', error);
-      this.recordingStatus.textContent =
-        'Error polishing note. Please try again.';
-      this.polishedNote.innerHTML = `<p><em>Error during polishing: ${error instanceof Error ? error.message : String(error)}</em></p>`;
-      if (
-        this.polishedNote.textContent?.trim() === '' ||
-        this.polishedNote.innerHTML.includes('<em>Error during polishing')
-      ) {
-        const placeholder = this.polishedNote.getAttribute('placeholder') || '';
-        this.polishedNote.innerHTML = placeholder;
-        this.polishedNote.classList.add('placeholder-active');
-      }
+  private applyState(state: AppState): void {
+    if (this.editorTitle) {
+      this.editorTitle.textContent = state.title || 'Untitled Note';
+      this.editorTitle.classList.toggle('placeholder-active', !state.title);
+    }
+    this.rawTranscription.textContent = state.raw;
+    this.rawTranscription.classList.toggle('placeholder-active', !state.raw);
+    this.polishedNote.innerHTML = state.polished;
+    this.polishedNote.classList.toggle('placeholder-active', !state.polished);
+    
+    if (this.currentNote) {
+      this.currentNote.title = state.title;
+      this.currentNote.rawTranscription = state.raw;
+      this.currentNote.polishedNote = state.polished;
+      this.currentNote.tags = [...state.tags];
+      this.renderCurrentTags();
+      this.saveCurrentNote(true);
     }
   }
 
+  private updateUndoRedoButtons(): void {
+    if (this.undoButton) this.undoButton.disabled = this.undoStack.length <= 1;
+    if (this.redoButton) this.redoButton.disabled = this.redoStack.length === 0;
+  }
+
+  private historyPushTimeout: number | null = null;
+  private debouncedHistoryPush(): void {
+    if (this.historyPushTimeout) clearTimeout(this.historyPushTimeout);
+    this.historyPushTimeout = window.setTimeout(() => this.pushToUndoStack(), 1000);
+  }
+
   private createNewNote(): void {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateUndoRedoButtons();
+
     this.currentNote = {
       id: `note_${Date.now()}`,
       title: 'Untitled Note',
@@ -923,6 +891,8 @@ class VoiceNotesApp {
     } else {
       this.stopLiveDisplay();
     }
+
+    this.pushToUndoStack();
   }
 
   private saveCurrentNote(isAutoSave = false): void {
@@ -964,9 +934,11 @@ class VoiceNotesApp {
     if (isAutoSave) {
       console.log('Auto-saved note');
       this.hasUnsavedChanges = false;
+      this.saveDraft();
       // Briefly show auto-save status if needed, but not too distracting
     } else {
       this.hasUnsavedChanges = false;
+      this.clearDraft();
       this.recordingStatus.textContent = 'Note saved to history';
       this.renderHistory();
     }
@@ -1186,6 +1158,10 @@ class VoiceNotesApp {
   }
 
   private loadNote(note: any): void {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.updateUndoRedoButtons();
+
     this.currentNote = {...note, tags: note.tags || []};
 
     if (this.editorTitle) {
@@ -1216,6 +1192,7 @@ class VoiceNotesApp {
     }
 
     this.recordingStatus.textContent = 'Note loaded from history';
+    this.pushToUndoStack();
   }
 
   private deleteNote(id: string): void {
@@ -1243,6 +1220,8 @@ class VoiceNotesApp {
 
   private async shareNote(): Promise<void> {
     if (!this.currentNote) return;
+
+    this.saveDraft(); // Save state before sharing
 
     const title = this.editorTitle.textContent?.trim() || 'Untitled Note';
     const polishedContent = this.polishedNote.classList.contains('placeholder-active')
@@ -1292,7 +1271,7 @@ class VoiceNotesApp {
     }
   }
 
-  private async checkSharedNote(): Promise<void> {
+  private async checkSharedNote(): Promise<boolean> {
     const params = new URLSearchParams(window.location.search);
     const shareId = params.get('share');
 
@@ -1310,24 +1289,25 @@ class VoiceNotesApp {
           if (this.editorTitle) {
             this.editorTitle.textContent = data.title || 'Shared Note';
             this.editorTitle.classList.remove('placeholder-active');
-            this.editorTitle.setAttribute('contenteditable', 'false');
+            this.editorTitle.setAttribute('contenteditable', 'true');
           }
 
           this.polishedNote.innerHTML = data.polishedNote || '';
           this.polishedNote.classList.remove('placeholder-active');
-          this.polishedNote.setAttribute('contenteditable', 'false');
+          this.polishedNote.setAttribute('contenteditable', 'true');
 
-          // Highlight shared view
-          this.recordingStatus.textContent = 'Viewing shared note';
-          
-          if (this.newButton) {
-              this.newButton.innerHTML = '<i class="fas fa-home"></i>';
-              this.newButton.title = 'Go to my notes';
-              this.newButton.addEventListener('click', (e) => {
-                  e.preventDefault();
-                  window.location.href = window.location.origin + window.location.pathname;
-              });
+          const icon = this.newButton.querySelector('i');
+          if (icon) {
+            icon.classList.remove('fa-plus');
+            icon.classList.add('fa-home');
           }
+          this.newButton.title = 'Go to my notes';
+          this.newButton.onclick = (e) => {
+              e.preventDefault();
+              window.location.href = window.location.origin + window.location.pathname;
+          };
+
+          this.saveSharedToLocalButton.classList.remove('hidden');
 
           // Format tags if any
           if (data.tags && Array.isArray(data.tags)) {
@@ -1340,26 +1320,132 @@ class VoiceNotesApp {
               tags: data.tags
             };
             this.renderCurrentTags();
-            // Tags will be rendered, we should hide remove icons in CSS or here
-            setTimeout(() => {
-                this.currentTagsContainer.querySelectorAll('.remove-tag').forEach(i => (i as HTMLElement).style.display = 'none');
-            }, 100);
           }
+          this.recordingStatus.textContent = 'Viewing shared note (Editable)';
+          return true;
         } else {
           this.recordingStatus.textContent = 'Shared note not found';
           this.polishedNote.innerHTML = '<h1>Note Not Found</h1><p>The shared note you are looking for does not exist or has been removed.</p>';
+          return false;
         }
       } catch (err) {
         console.error('Error loading shared note:', err);
         this.recordingStatus.textContent = 'Error loading shared note';
+        return false;
       }
     }
+    return false;
   }
 
   private stripHtml(html: string): string {
     const tmp = document.createElement('DIV');
     tmp.innerHTML = html;
     return tmp.textContent || tmp.innerText || '';
+  }
+
+  private togglePlayback(): void {
+    if (!this.lastRecordedAudio) return;
+
+    if (this.playbackAudio && !this.playbackAudio.paused) {
+      this.playbackAudio.pause();
+      this.playPlaybackButton.innerHTML = '<i class="fas fa-play"></i>';
+      return;
+    }
+
+    if (!this.playbackAudio) {
+      const audioUrl = URL.createObjectURL(this.lastRecordedAudio);
+      this.playbackAudio = new Audio(audioUrl);
+      this.playbackAudio.onended = () => {
+        this.playPlaybackButton.innerHTML = '<i class="fas fa-play"></i>';
+      };
+    }
+
+    this.playbackAudio.play();
+    this.playPlaybackButton.innerHTML = '<i class="fas fa-pause"></i>';
+  }
+
+  private saveSharedToLocal(): void {
+    if (!this.currentNote) return;
+    
+    const notesHistory = this.getHistory();
+    const newNote = { ...this.currentNote, id: `note_${Date.now()}` };
+    notesHistory.unshift(newNote);
+    localStorage.setItem('notes_history', JSON.stringify(notesHistory));
+    
+    this.recordingStatus.textContent = 'Note saved to your history!';
+    this.saveSharedToLocalButton.classList.add('hidden');
+    
+    // Redirect to home view showing the new note in history
+    setTimeout(() => {
+        window.location.href = window.location.origin + window.location.pathname;
+    }, 1500);
+  }
+
+  private saveDraft(): void {
+    if (!this.currentNote) return;
+    
+    const draft = {
+      title: this.editorTitle.textContent?.trim() || '',
+      rawTranscription: this.rawTranscription.classList.contains('placeholder-active') ? '' : this.rawTranscription.textContent,
+      polishedNote: this.polishedNote.classList.contains('placeholder-active') ? '' : this.polishedNote.innerHTML,
+      tags: Array.from(this.currentNote.tags)
+    };
+    
+    localStorage.setItem('notes_draft', JSON.stringify(draft));
+  }
+
+  private restoreDraft(): boolean {
+    const draftStr = localStorage.getItem('notes_draft');
+    if (!draftStr) return false;
+
+    try {
+      const draft = JSON.parse(draftStr);
+      if (!draft.rawTranscription && !draft.polishedNote && !draft.title) return false;
+
+      if (this.editorTitle) {
+        this.editorTitle.textContent = draft.title || 'Untitled Note';
+        if (draft.title) this.editorTitle.classList.remove('placeholder-active');
+      }
+
+      if (draft.rawTranscription) {
+        this.rawTranscription.textContent = draft.rawTranscription;
+        this.rawTranscription.classList.remove('placeholder-active');
+      }
+
+      if (draft.polishedNote) {
+        this.polishedNote.innerHTML = draft.polishedNote;
+        this.polishedNote.classList.remove('placeholder-active');
+      }
+
+      this.undoStack = [];
+      this.redoStack = [];
+
+      this.currentNote = {
+        id: 'draft_' + Date.now(),
+        title: draft.title || 'Untitled Draft',
+        rawTranscription: draft.rawTranscription || '',
+        polishedNote: draft.polishedNote || '',
+        timestamp: Date.now(),
+        tags: draft.tags || []
+      };
+      
+      this.renderCurrentTags();
+      this.pushToUndoStack();
+
+      const toast = document.getElementById('draftToast');
+      if (toast) {
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 5000);
+      }
+      return true;
+    } catch (e) {
+      console.error('Error restoring draft:', e);
+      return false;
+    }
+  }
+
+  private clearDraft(): void {
+    localStorage.removeItem('notes_draft');
   }
 }
 

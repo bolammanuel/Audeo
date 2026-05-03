@@ -50,6 +50,18 @@
                     <button id="exportPdf">PDF (.pdf)</button>
                   </div>
                 </div>
+                <button class="header-action-btn" id="undoButton" title="Undo (Ctrl+Z)">
+                  <i class="fas fa-undo"></i>
+                </button>
+                <button class="header-action-btn" id="redoButton" title="Redo (Ctrl+Y)">
+                  <i class="fas fa-redo"></i>
+                </button>
+                <button class="header-action-btn hidden" id="saveSharedToLocalButton" title="Save to My Notes">
+                  <i class="fas fa-save"></i>
+                </button>
+                <button class="header-action-btn hidden" id="playPlaybackButton" title="Play Original Recording">
+                  <i class="fas fa-play"></i>
+                </button>
                 <button class="header-action-btn" id="shareButton" title="Share Note">
                   <i class="fas fa-share-alt"></i>
                 </button>
@@ -150,6 +162,14 @@
         </div>
       </div>
       <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    </div>
+
+    <div id="draftToast" class="share-toast draft-toast">
+      <div class="share-toast-content">
+        <i class="fas fa-file-alt"></i>
+        <span>Restored unsaved changes from last session</span>
+        <button id="dismissDraft" class="toast-action-btn">Dismiss</button>
+      </div>
     </div>
 
     <div id="micStatus" class="debug-panel"></div>

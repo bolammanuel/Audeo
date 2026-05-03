@@ -794,9 +794,6 @@ body.shared-view .recording-interface,
 body.shared-view .history-sidebar,
 body.shared-view .sidebar-overlay,
 body.shared-view #shareButton,
-body.shared-view .tab-navigation-container,
-body.shared-view #editorTitle[contenteditable="true"],
-body.shared-view .note-content[contenteditable="true"],
 body.shared-view .tag-input-wrapper-main {
   display: none !important;
 }
@@ -807,7 +804,6 @@ body.shared-view .main-content {
 
 body.shared-view .editor-title {
   margin-right: 0;
-  cursor: default;
 }
 
 body.shared-view .note-area {
@@ -817,6 +813,28 @@ body.shared-view .note-area {
 body.shared-view .note-header {
   border-bottom: 2px solid var(--color-border);
   padding-bottom: 20px;
+}
+
+.toast-action-btn {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all 0.2s;
+}
+
+.toast-action-btn:hover {
+  filter: brightness(1.1);
+}
+
+.draft-toast {
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-accent);
 }
 
 @media (max-width: 280px) {
