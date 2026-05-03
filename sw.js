@@ -1,4 +1,4 @@
-const CACHE_NAME = 'audeo-v2';
+const CACHE_NAME = 'audeo-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -26,6 +26,16 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Network first for HTML, Cache first for others
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match('/');
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);

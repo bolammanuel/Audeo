@@ -961,6 +961,32 @@ body.shared-view .note-header {
   box-shadow: var(--shadow-sm);
 }
 
+#installButton {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+  width: auto;
+  padding: 0 16px;
+  gap: 8px;
+}
+
+#installButton:hover {
+  background-color: var(--color-accent-alt);
+  border-color: var(--color-accent-alt);
+}
+
+.btn-text {
+  display: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+  .btn-text {
+    display: inline;
+  }
+}
+
 .header-action-btn:active {
   transform: translateY(0);
 }
