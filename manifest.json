@@ -1,0 +1,17 @@
+{
+  "name": "Audeo - smart Voice Notes",
+  "short_name": "Audeo",
+  "description": "Smart voice notes with manual editing and history.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
