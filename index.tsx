@@ -776,10 +776,24 @@ class VoiceNotesApp {
     base64Audio: string,
     mimeType: string,
   ): Promise<void> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('Gemini API key is missing. Please add it via Settings > Secrets panel.');
+      this.recordingStatus.textContent = 'Please configure your Gemini API Key in the Settings > Secrets panel.';
+      return;
+    }
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.5-flash",
         contents: {
           parts: [
             {
@@ -819,11 +833,25 @@ class VoiceNotesApp {
       return;
     }
 
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('Gemini API key is missing. Please add it via Settings > Secrets panel.');
+      this.recordingStatus.textContent = 'Please configure your Gemini API Key in the Settings > Secrets panel.';
+      return;
+    }
+
     this.recordingStatus.textContent = 'Polishing note...';
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({
+        apiKey: apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.5-flash",
         contents: `Clean up this raw transcription for readability. Fix punctuation and obvious spelling/grammar errors. 
         DO NOT rewrite it, DO NOT add structure like bullet points or sections, and DO NOT change the tone. 
         Just a simple, clean version of exactly what was said. Return the cleaned text only.
