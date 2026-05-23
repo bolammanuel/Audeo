@@ -1,17 +1,30 @@
 {
-  "name": "Audeo",
+  "id": "audeo-voice-notes",
+  "name": "Audeo - Voice Notes",
   "short_name": "Audeo",
-  "description": "Smart dictation and audio transcription",
-  "start_url": "/",
+  "description": "Smart voice notes with manual editing and history.",
+  "start_url": "/?utm_source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
   "background_color": "#121212",
-  "theme_color": "#82aaff",
+  "theme_color": "#121212",
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23121212'/><path fill='white' d='M50 70c11 0 20-9 20-20V30c0-11-9-20-20-20S30 19 30 30v20c0 11 9 20 20 20z'/><path fill='white' d='M80 50c0 16.6-13.4 30-30 30S20 66.6 20 50h-5c0 18.2 13.9 33.2 31.7 34.8V95h6.6V84.8C71.1 83.2 85 68.2 85 50h-5z'/></svg>",
-      "sizes": "512x512",
+      "src": "/icon.svg",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

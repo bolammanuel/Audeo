@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Shared Note Validation
+    function isValidSharedNote(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.polishedNote is string && data.polishedNote.size() <= 100000 &&
+             data.timestamp is number &&
+             (data.authorId == null || (data.authorId is string && data.authorId == request.auth.uid));
+    }
+
+    match /sharedNotes/{noteId} {
+      // Anyone with the ID can read a shared note
+      allow get: if isValidId(noteId);
+      
+      // List should probably be disabled for privacy unless explicitly requested
+      allow list: if false;
+
+      // Only signed in users can create/share notes
+      allow create: if isSignedIn() && isValidId(noteId) && isValidSharedNote(request.resource.data);
+      
+      // Notes are immutable once shared in this version (one-way share)
+      allow update, delete: if false;
+    }
+  }
+}

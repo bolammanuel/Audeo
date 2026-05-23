@@ -7,9 +7,9 @@
     <meta name="theme-color" content="#121212">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>path { fill: black; } @media (prefers-color-scheme: dark) { path { fill: white; } }</style><path d="M50 70c11 0 20-9 20-20V30c0-11-9-20-20-20S30 19 30 30v20c0 11 9 20 20 20z"/><path d="M80 50c0 16.6-13.4 30-30 30S20 66.6 20 50h-5c0 18.2 13.9 33.2 31.7 34.8V95h6.6V84.8C71.1 83.2 85 68.2 85 50h-5z"/></svg>'>
-    <link rel="apple-touch-icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="white"/><path d="M50 70c11 0 20-9 20-20V30c0-11-9-20-20-20S30 19 30 30v20c0 11 9 20 20 20z"/><path d="M80 50c0 16.6-13.4 30-30 30S20 66.6 20 50h-5c0 18.2 13.9 33.2 31.7 34.8V95h6.6V84.8C71.1 83.2 85 68.2 85 50h-5z"/></svg>'>
+    <link rel="manifest" href="/manifest.json?v=3">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="apple-touch-icon" href="/icon.svg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,7 +17,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/index.css">
+    <link rel="stylesheet" href="./index.css">
 </head>
   <body>
     <div class="app-container">
@@ -35,12 +35,12 @@
                   <button class="tab-button" data-tab="raw">Raw</button>
                   <div class="active-tab-indicator"></div>
                 </div>
-                <button id="rePolishButton" class="re-polish-btn hidden" title="Update polished note from corrected transcription">
-                  <i class="fas fa-magic"></i> Re-polish
-                </button>
               </div>
               
               <div class="utility-actions">
+                <button class="header-action-btn hidden" id="installButton" title="Install Audeo App">
+                  <i class="fas fa-mobile-screen-button"></i><span class="btn-text">Install App</span>
+                </button>
                 <div class="export-dropdown">
                   <button class="header-action-btn" id="exportButton" title="Export Note">
                     <i class="fas fa-download"></i>
@@ -50,6 +50,21 @@
                     <button id="exportPdf">PDF (.pdf)</button>
                   </div>
                 </div>
+                <button class="header-action-btn" id="copyButton" title="Copy Note (Duplicate)">
+                  <i class="fas fa-copy"></i>
+                </button>
+                <button class="header-action-btn" id="undoButton" title="Undo (Ctrl+Z)">
+                  <i class="fas fa-undo"></i>
+                </button>
+                <button class="header-action-btn" id="redoButton" title="Redo (Ctrl+Y)">
+                  <i class="fas fa-redo"></i>
+                </button>
+                <button class="header-action-btn hidden" id="saveSharedToLocalButton" title="Save to My Notes">
+                  <i class="fas fa-save"></i>
+                </button>
+                <button class="header-action-btn" id="shareButton" title="Share Note">
+                  <i class="fas fa-share-alt"></i>
+                </button>
                 <button class="header-action-btn" id="historyToggleButton" title="History">
                   <i class="fas fa-history"></i>
                 </button>
@@ -96,12 +111,19 @@
           <div class="recording-controls">
             <button class="action-button" id="themeToggleButton" title="Toggle Theme">
               <i class="fas fa-sun"></i>
+              <span class="action-btn-text">Theme</span>
             </button>
 
             <button class="action-button" id="uploadButton" title="Upload Audio">
               <i class="fas fa-upload"></i>
+              <span class="action-btn-text">Upload</span>
             </button>
             <input type="file" id="audioUploadInput" accept="audio/*" style="display: none;">
+
+            <button class="action-button hidden" id="playPlaybackButton" title="Listen to Original Recording">
+              <i class="fas fa-play"></i>
+              <span class="action-btn-text">Listen</span>
+            </button>
 
             <button id="recordButton" class="record-button" title="Start/Stop Recording">
               <div class="record-button-inner">
@@ -117,6 +139,7 @@
 
             <button class="action-button" id="newButton" title="New Note">
               <i class="fas fa-plus"></i>
+              <span class="action-btn-text">New</span>
             </button>
           </div>
         </div>
@@ -149,7 +172,22 @@
       <div id="sidebarOverlay" class="sidebar-overlay"></div>
     </div>
 
+    <div id="draftToast" class="share-toast draft-toast">
+      <div class="share-toast-content">
+        <i class="fas fa-file-alt"></i>
+        <span>Restored unsaved changes from last session</span>
+        <button id="dismissDraft" class="toast-action-btn">Dismiss</button>
+      </div>
+    </div>
+
     <div id="micStatus" class="debug-panel"></div>
+
+    <div id="shareToast" class="share-toast">
+      <div class="share-toast-content">
+        <i class="fas fa-link"></i>
+        <span id="shareToastMessage">Link copied to clipboard!</span>
+      </div>
+    </div>
 
     <script>
       document.addEventListener("DOMContentLoaded", () => {
@@ -168,14 +206,10 @@
           const tabName = activeButton.getAttribute("data-tab");
           noteContents.forEach((content) => content.classList.remove("active"));
 
-          const rePolishBtn = document.getElementById("rePolishButton");
-
           if (tabName === "raw") {
             document.getElementById("rawTranscription").classList.add("active");
-            if (rePolishBtn) rePolishBtn.classList.remove("hidden");
           } else {
             document.getElementById("polishedNote").classList.add("active");
-            if (rePolishBtn) rePolishBtn.classList.add("hidden");
           }
 
           const originalTransition = activeTabIndicator.style.transition;
