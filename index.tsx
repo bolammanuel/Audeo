@@ -8,7 +8,6 @@ import {marked} from 'marked';
 import {jsPDF} from 'jspdf';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { GoogleGenAI } from "@google/genai";
 import firebaseConfig from './firebase-applet-config.json';
 import './index.css';
 
@@ -776,40 +775,29 @@ class VoiceNotesApp {
     base64Audio: string,
     mimeType: string,
   ): Promise<void> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error('Gemini API key is missing. Please add it via Settings > Secrets panel.');
-      this.recordingStatus.textContent = 'Please configure your Gemini API Key in the Settings > Secrets panel.';
-      return;
-    }
-
     try {
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType,
-                data: base64Audio,
-              },
-            },
-            {
-              text: "Transcribe this audio exactly. Return only the transcription text.",
-            },
-          ],
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ base64Audio, mimeType }),
       });
 
-      const transcription = response.text || '';
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData.error || 'Server error during transcription.';
+        console.error('Server error:', errMsg);
+        if (errMsg.includes('GEMINI_API_KEY')) {
+          this.recordingStatus.textContent = 'Please configure your Gemini API Key in the Settings > Secrets panel.';
+        } else {
+          this.recordingStatus.textContent = errMsg;
+        }
+        return;
+      }
+
+      const data = await response.json();
+      const transcription = data.transcription || '';
       
       this.rawTranscription.textContent = transcription;
       this.rawTranscription.classList.remove('placeholder-active');
@@ -823,7 +811,7 @@ class VoiceNotesApp {
       await this.getPolishedNote();
     } catch (error) {
       console.error('Transcription error:', error);
-      this.recordingStatus.textContent = 'Error during transcription.';
+      this.recordingStatus.textContent = 'Error during transcription. Please verify your connection and try again.';
     }
   }
 
@@ -833,34 +821,30 @@ class VoiceNotesApp {
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error('Gemini API key is missing. Please add it via Settings > Secrets panel.');
-      this.recordingStatus.textContent = 'Please configure your Gemini API Key in the Settings > Secrets panel.';
-      return;
-    }
-
     this.recordingStatus.textContent = 'Polishing note...';
     try {
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: `Clean up this raw transcription for readability. Fix punctuation and obvious spelling/grammar errors. 
-        DO NOT rewrite it, DO NOT add structure like bullet points or sections, and DO NOT change the tone. 
-        Just a simple, clean version of exactly what was said. Return the cleaned text only.
-        
-        Raw Transcription:
-        ${rawContent}`,
+      const response = await fetch('/api/polish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rawContent }),
       });
 
-      let polishedText = response.text || '';
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData.error || 'Server error during note polishing.';
+        console.error('Server error:', errMsg);
+        if (errMsg.includes('GEMINI_API_KEY')) {
+          this.recordingStatus.textContent = 'Please configure your Gemini API Key in the Settings > Secrets panel.';
+        } else {
+          this.recordingStatus.textContent = errMsg;
+        }
+        return;
+      }
+
+      const data = await response.json();
+      const polishedText = data.polishedText || '';
       
       this.polishedNote.textContent = polishedText;
       this.polishedNote.classList.remove('placeholder-active');
@@ -874,7 +858,7 @@ class VoiceNotesApp {
       this.recordingStatus.textContent = 'Transcription complete and polished!';
     } catch (error) {
       console.error('Polishing error:', error);
-      this.recordingStatus.textContent = 'Error polishing note.';
+      this.recordingStatus.textContent = 'Error polishing note. Please verify your connection.';
     }
   }
 
