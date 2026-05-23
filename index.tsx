@@ -75,8 +75,6 @@ class VoiceNotesApp {
   private undoStack: AppState[] = [];
   private redoStack: AppState[] = [];
   private isPushingToStack = false;
-  private deferredPrompt: any = null;
-  private installButton: HTMLButtonElement;
 
   private recordingInterface: HTMLDivElement;
   private liveRecordingTitle: HTMLDivElement;
@@ -155,9 +153,6 @@ class VoiceNotesApp {
     ) as HTMLButtonElement;
     this.redoButton = document.getElementById(
       'redoButton',
-    ) as HTMLButtonElement;
-    this.installButton = document.getElementById(
-      'installButton'
     ) as HTMLButtonElement;
     this.playPlaybackButton = document.getElementById(
       'playPlaybackButton',
@@ -238,24 +233,6 @@ class VoiceNotesApp {
     this.shareButton.addEventListener('click', () => this.shareNote());
     this.undoButton.addEventListener('click', () => this.undo());
     this.redoButton.addEventListener('click', () => this.redo());
-    this.installButton.addEventListener('click', () => this.handleInstallApp());
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault();
-      // Stash the event so it can be triggered later.
-      this.deferredPrompt = e;
-      // Update UI notify the user they can install the PWA
-      this.installButton.classList.remove('hidden');
-    });
-
-    window.addEventListener('appinstalled', () => {
-      // Clear the deferredPrompt so it can be garbage collected
-      this.deferredPrompt = null;
-      // Hide the install button
-      this.installButton.classList.add('hidden');
-      console.log('PWA was installed');
-    });
     this.playPlaybackButton.addEventListener('click', () => this.togglePlayback());
     this.saveSharedToLocalButton.addEventListener('click', () => this.saveSharedToLocal());
     this.clearHistoryButton.addEventListener('click', () => this.clearAllHistory());
@@ -898,28 +875,6 @@ class VoiceNotesApp {
     if (this.undoStack.length > 50) this.undoStack.shift();
     this.redoStack = []; // Clear redo stack on new action
     this.updateUndoRedoButtons();
-  }
-
-  private async handleInstallApp(): Promise<void> {
-    if (!this.deferredPrompt) return;
-    
-    // Show the install prompt
-    this.deferredPrompt.prompt();
-    
-    // Wait for the user to respond to the prompt
-    const { outcome } = await this.deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    } else {
-      console.log('User dismissed the install prompt');
-    }
-    
-    // We've used the prompt, and can't use it again, throw it away
-    this.deferredPrompt = null;
-    
-    // Hide the install button
-    this.installButton.classList.add('hidden');
   }
 
   private undo(): void {
@@ -1618,31 +1573,13 @@ class VoiceNotesApp {
 document.addEventListener('DOMContentLoaded', () => {
   new VoiceNotesApp();
 
-  // Register Service Worker for PWA
+  // Unregister service workers as this is now a browser-only web application
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => {
-          console.log('SW registered:', reg);
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  window.location.reload();
-                }
-              });
-            }
-          });
-        })
-        .catch(err => console.log('SW registration failed:', err));
-    });
-
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister().then(() => {
+          console.log('Service worker unregistered');
+        });
       }
     });
   }
