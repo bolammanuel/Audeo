@@ -1,12 +1,30 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+const LOG_FILE = path.join(__dirname, 'server-debug.log');
+
+function logDebug(message: string, error?: any) {
+  const timestamp = new Date().toISOString();
+  const logMsg = `[${timestamp}] ${message}` + (error ? `\nError: ${error.stack || error.message || error}\n` : '\n');
+  console.log(logMsg);
+  try {
+    fs.appendFileSync(LOG_FILE, logMsg);
+  } catch (e) {
+    // Ignore logging errors
+  }
+}
+
+// Log startup information
+logDebug(`Server starting. NODE_ENV: ${process.env.NODE_ENV}. GEMINI_API_KEY length: ${process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 'undefined'}`);
 
 // Set body limit high enough for base64 encoded audio
 app.use(express.json({ limit: '100mb' }));
@@ -20,9 +38,11 @@ function getGeminiClient(): GoogleGenAI {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
+    logDebug('GEMINI_API_KEY is missing in getGeminiClient');
     throw new Error('GEMINI_API_KEY environment variable is required but missing on the server.');
   }
 
+  logDebug(`GEMINI_API_KEY is present (length: ${apiKey.length})`);
   geminiClient = new GoogleGenAI({
     apiKey,
     httpOptions: {
@@ -37,17 +57,22 @@ function getGeminiClient(): GoogleGenAI {
 
 // Transcription route
 app.post('/api/transcribe', async (req: Request, res: Response): Promise<void> => {
+  logDebug('Received transcription request');
   try {
     const { base64Audio, mimeType } = req.body;
     
     if (!base64Audio) {
+      logDebug('Error: Missing base64Audio content');
       res.status(400).json({ error: 'Missing base64Audio content' });
       return;
     }
     if (!mimeType) {
+      logDebug('Error: Missing mimeType');
       res.status(400).json({ error: 'Missing mimeType' });
       return;
     }
+
+    logDebug(`Audio MIME type: ${mimeType}, Base64 length: ${base64Audio.length}`);
 
     const ai = getGeminiClient();
     const response = await ai.models.generateContent({
@@ -67,9 +92,10 @@ app.post('/api/transcribe', async (req: Request, res: Response): Promise<void> =
       }
     });
 
+    logDebug(`Transcription response received: ${response.text ? response.text.substring(0, 100) : 'empty'}`);
     res.json({ transcription: response.text || '' });
   } catch (error: any) {
-    console.error('Server transcription error:', error);
+    logDebug('Server transcription error', error);
     res.status(500).json({ 
       error: error.message || 'An error occurred during voice transcription on the server.' 
     });
@@ -111,7 +137,7 @@ const distPath = path.resolve(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // Fallback all frontend routes to index.html
-app.get('*', (req: Request, res: Response) => {
+app.get('/{*splat}', (req: Request, res: Response) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
