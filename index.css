@@ -135,7 +135,7 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   line-height: 1.65;
-  height: 100vh; /* Fixed viewport height */
+  height: 100dvh; /* Fixed dynamic viewport height to adapt to mobile browser chromes and keyboards */
   overflow: hidden; /* Prevent body scrollbars */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -274,6 +274,7 @@ body.light-mode .active-tab-indicator {
 .note-content-wrapper {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 0 40px 40px;
   position: relative;
   min-height: 0;
