@@ -49,7 +49,7 @@ function getOpenAIClient(): OpenAI {
 }
 
 // Transcription route
-app.post('/api/transcribe', async (req: Request, res: Response): Promise<void> => {
+app.post(['/api/transcribe', '/transcribe'], async (req: Request, res: Response): Promise<void> => {
   logDebug('Received transcription request');
   try {
     const { base64Audio, mimeType } = req.body;
@@ -112,7 +112,7 @@ app.post('/api/transcribe', async (req: Request, res: Response): Promise<void> =
 });
 
 // Polish note route
-app.post('/api/polish', async (req: Request, res: Response): Promise<void> => {
+app.post(['/api/polish', '/polish'], async (req: Request, res: Response): Promise<void> => {
   try {
     const { rawContent } = req.body;
     
@@ -147,7 +147,7 @@ app.post('/api/polish', async (req: Request, res: Response): Promise<void> => {
 });
 
 // Text-to-Speech route
-app.post('/api/tts', async (req: Request, res: Response): Promise<void> => {
+app.post(['/api/tts', '/tts'], async (req: Request, res: Response): Promise<void> => {
   try {
     const { text } = req.body;
     
@@ -181,8 +181,8 @@ app.post('/api/tts', async (req: Request, res: Response): Promise<void> => {
 const distPath = path.resolve(process.cwd(), 'dist');
 app.use(express.static(distPath));
 
-// Fallback all frontend routes to index.html
-app.get('*', (req: Request, res: Response) => {
+// Fallback all frontend routes to index.html using Express 5 wildcard syntax
+app.get('/{*splat}', (req: Request, res: Response) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
