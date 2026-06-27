@@ -543,41 +543,36 @@ export default function App() {
       const height = canvas.clientHeight;
       ctx.clearRect(0, 0, width, height);
 
-      const numBars = Math.floor(bufferLength * 0.5);
-      if (numBars === 0) return;
-
+      // Symmetrical rounded vertical bars
+      const numBars = 45;
       const spacingWidth = width / numBars;
-      const barWidth = Math.max(1, Math.floor(spacingWidth * 0.7));
-      const barSpacing = Math.max(0, Math.floor(spacingWidth * 0.3));
+      const barWidth = Math.max(3, Math.floor(spacingWidth * 0.5));
 
-      let x = 0;
-      const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#82aaff';
-      const recordingColor = getComputedStyle(document.documentElement).getPropertyValue('--color-recording').trim() || '#ff3b30';
+      const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text').trim() || '#ffffff';
+      
+      ctx.lineWidth = barWidth;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = textColor;
+
+      const midY = height / 2;
 
       for (let i = 0; i < numBars; i++) {
-        if (x >= width) break;
-        const dataIdx = Math.floor(i * (bufferLength / numBars));
+        const dataIdx = Math.floor((i / numBars) * (bufferLength * 0.6));
         const amplitude = dataArray[dataIdx] / 255.0;
-        let barHeight = Math.round(amplitude * height);
-        if (barHeight < 1 && barHeight > 0) barHeight = 1;
+        
+        const minHeight = 4;
+        const maxHeight = height * 0.8;
+        const barHeight = minHeight + (amplitude * (maxHeight - minHeight));
+        
+        const halfBar = barHeight / 2;
+        const x = i * spacingWidth + barWidth / 2;
+        const yStart = midY - halfBar;
+        const yEnd = midY + halfBar;
 
-        const y = Math.round((height - barHeight) / 2);
-
-        if (amplitude > 0.8) {
-          ctx.fillStyle = '#ff3b30';
-        } else if (amplitude > 0.4) {
-          ctx.fillStyle = accentColor;
-        } else {
-          ctx.fillStyle = recordingColor;
-        }
-
-        const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
-        gradient.addColorStop(0, ctx.fillStyle as string);
-        gradient.addColorStop(1, adjustColor(ctx.fillStyle as string, -20));
-        ctx.fillStyle = gradient;
-
-        ctx.fillRect(Math.floor(x), y, barWidth, barHeight);
-        x += barWidth + barSpacing;
+        ctx.beginPath();
+        ctx.moveTo(x, yStart);
+        ctx.lineTo(x, yEnd);
+        ctx.stroke();
       }
     };
 
@@ -1419,7 +1414,7 @@ export default function App() {
         </div>
         <div className="sidebar-search-area">
           <div className="search-box">
-            <i class="fas fa-search"></i>
+            <i className="fas fa-search"></i>
             <input 
               type="text" 
               placeholder="Search titles or content..."
@@ -1452,23 +1447,34 @@ export default function App() {
                   setIsHistoryOpen(false);
                 }}
               >
-                <div className="history-item-title">{note.title || 'Untitled Note'}</div>
-                <div className="history-item-date">{new Date(note.timestamp).toLocaleString()}</div>
-                <div className="history-item-preview">
-                  {stripHtml(note.polishedNote || note.rawTranscription).substring(0, 100)}...
+                <div className="history-item-left">
+                  <div className="history-item-status">
+                    <span className={`status-dot ${note.polishedNote || note.rawTranscription ? 'transcribed' : 'draft'}`}></span>
+                    <span className="status-label">
+                      {note.polishedNote || note.rawTranscription ? 'Transcribed' : 'Draft'}
+                    </span>
+                  </div>
+                  <div className="history-item-title">{note.title || 'Untitled Note'}</div>
+                  <div className="history-item-date">
+                    {new Date(note.timestamp).toLocaleDateString(undefined, { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })} at {new Date(note.timestamp).toLocaleTimeString(undefined, { 
+                      hour: 'numeric', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
                 </div>
-                <div className="history-item-tags">
-                  {note.tags?.map(t => (
-                    <span className="history-tag-chip" key={t}>{t}</span>
-                  ))}
-                </div>
-                <div className="history-item-actions">
+                <div className="history-item-right">
                   <button 
                     className="delete-history-btn" 
                     onClick={(e) => deleteNote(note.id, e)}
+                    title="Delete Note"
                   >
-                    <i className="fas fa-trash"></i>
+                    <i className="fas fa-trash-can"></i>
                   </button>
+                  <i className="fas fa-chevron-right history-chevron"></i>
                 </div>
               </div>
             ))
