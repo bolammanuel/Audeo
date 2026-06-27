@@ -250,6 +250,7 @@ export default function App() {
     setLastRecordedAudio(null);
     stopPlayback();
     stopTtsPlayback();
+    clearDraft(); // Prevent restoring draft from previous notes
 
     if (titleRef.current) titleRef.current.textContent = 'Untitled Note';
     if (rawRef.current) rawRef.current.textContent = '';
@@ -923,6 +924,7 @@ export default function App() {
 
     if (currentNote?.id === id) {
       createNewNote();
+      clearDraft();
     }
   };
 
@@ -1166,6 +1168,7 @@ export default function App() {
           <div className="note-header">
             <div 
               ref={titleRef}
+              key={`title-${currentNote?.id}`}
               className="editor-title" 
               id="editorTitle" 
               contentEditable="true"
@@ -1173,9 +1176,8 @@ export default function App() {
               placeholder="Untitled Note"
               onInput={triggerAutoSave}
               onBlur={debouncedHistoryPush}
-            >
-              Untitled Note
-            </div>
+              dangerouslySetInnerHTML={{ __html: currentNote?.title || 'Untitled Note' }}
+            />
             
             <div className="header-actions-container">
               <div className="tab-navigation-container">
@@ -1291,6 +1293,7 @@ export default function App() {
           <div className="note-content-wrapper">
             <div
               ref={polishedRef}
+              key={`polished-${currentNote?.id}`}
               id="polishedNote"
               className={`note-content ${activeTab === 'polished' ? 'active' : ''}`}
               contentEditable="true"
@@ -1298,9 +1301,11 @@ export default function App() {
               placeholder="Your polished notes will appear here..."
               onInput={triggerAutoSave}
               onBlur={debouncedHistoryPush}
+              dangerouslySetInnerHTML={{ __html: currentNote?.polishedNote || '' }}
             />
             <div
               ref={rawRef}
+              key={`raw-${currentNote?.id}`}
               id="rawTranscription"
               className={`note-content ${activeTab === 'raw' ? 'active' : ''}`}
               contentEditable="true"
@@ -1308,6 +1313,7 @@ export default function App() {
               placeholder="Raw transcription will appear here..."
               onInput={triggerAutoSave}
               onBlur={debouncedHistoryPush}
+              dangerouslySetInnerHTML={{ __html: currentNote?.rawTranscription || '' }}
             />
           </div>
         </div>
