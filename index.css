@@ -558,6 +558,18 @@ body.light-mode .record-button.recording .record-button-inner { color: white; }
   .live-recording-timer { font-size: 36px; }
   .action-button { width: 44px; height: 44px; font-size: 16px; }
   .record-button { width: 64px; height: 64px; }
+
+  /* Hide the normal footer when typing/focusing on inputs to maximize screen space */
+  .main-content:has(.editor-title:focus) .recording-interface:not(.is-live),
+  .main-content:has(.note-content:focus) .recording-interface:not(.is-live) {
+    height: 0;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-top: none;
+  }
 }
 
 /* History Sidebar Styles */

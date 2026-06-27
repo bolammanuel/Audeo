@@ -225,8 +225,10 @@ export default function App() {
         setRecordingStatus('Error loading shared note');
       }
     } else {
-      const restored = restoreDraft();
-      if (!restored) {
+      const history = getHistory();
+      if (history.length > 0) {
+        loadNote(history[0]);
+      } else {
         createNewNote();
       }
     }
@@ -947,6 +949,7 @@ export default function App() {
     setLastRecordedAudio(null);
     stopPlayback();
     stopTtsPlayback();
+    clearDraft();
 
     if (titleRef.current) titleRef.current.textContent = note.title || 'Untitled Note';
     if (rawRef.current) rawRef.current.textContent = note.rawTranscription || '';
