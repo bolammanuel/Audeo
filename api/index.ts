@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-const LOG_FILE = path.join(__dirname, 'server-debug.log');
+const LOG_FILE = path.join('/tmp', 'server-debug.log');
 
 function logDebug(message: string, error?: any) {
   const timestamp = new Date().toISOString();
@@ -24,7 +24,7 @@ function logDebug(message: string, error?: any) {
 }
 
 // Log startup information
-logDebug(`Server starting. NODE_ENV: ${process.env.NODE_ENV}. OPENAI_API_KEY length: ${process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 'undefined'}`);
+logDebug(`Server starting. NODE_ENV: ${process.env.NODE_ENV}. VERCEL: ${process.env.VERCEL}. OPENAI_API_KEY length: ${process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 'undefined'}`);
 
 // Set body limit high enough for base64 encoded audio
 app.use(express.json({ limit: '100mb' }));
@@ -80,7 +80,8 @@ app.post('/api/transcribe', async (req: Request, res: Response): Promise<void> =
     }
 
     const tempFileName = `temp_${Date.now()}.${extension}`;
-    const tempFilePath = path.join(__dirname, tempFileName);
+    // Write temporary files to /tmp which is the only writable directory on Vercel/Serverless
+    const tempFilePath = path.join('/tmp', tempFileName);
     const audioBuffer = Buffer.from(base64Audio, 'base64');
     
     fs.writeFileSync(tempFilePath, audioBuffer);
@@ -176,19 +177,24 @@ app.post('/api/tts', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// Serve frontend build output statically in production
-const distPath = path.resolve(__dirname, 'dist');
+// Serve frontend build output statically in production (useful for local runs)
+const distPath = path.resolve(process.cwd(), 'dist');
 app.use(express.static(distPath));
 
 // Fallback all frontend routes to index.html
-app.get('/{*splat}', (req: Request, res: Response) => {
+app.get('*', (req: Request, res: Response) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// Determine Port: 3000 in production Cloud Run, 3001 in development (proxied by Vite)
+// Determine Port: 3000 in production, 3001 in development
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = isProd ? (process.env.PORT || 3000) : 3001;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Server] VoiceNotesApp backend running on http://0.0.0.0:${PORT} (${isProd ? 'Production' : 'Development'})`);
-});
+// Only start the listening server locally. Vercel wraps the exported app directly.
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Server] VoiceNotesApp backend running on http://0.0.0.0:${PORT} (${isProd ? 'Production' : 'Development'})`);
+  });
+}
+
+export default app;
