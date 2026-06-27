@@ -1019,7 +1019,7 @@ body.shared-view .note-header {
 #installButton {
   background-color: var(--color-accent);
   border-color: var(--color-accent);
-  color: white;
+  color: var(--color-bg);
   width: auto;
   padding: 0 16px;
   gap: 8px;

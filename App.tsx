@@ -40,6 +40,7 @@ export default function App() {
   const [tagInputText, setTagInputText] = useState('');
   const [isSharedView, setIsSharedView] = useState(false);
   const [hasSharedSaveButton, setHasSharedSaveButton] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   // Playback states
   const [lastRecordedAudio, setLastRecordedAudio] = useState<Blob | null>(null);
@@ -116,14 +117,18 @@ export default function App() {
     // 3. Check for Shared Note or Restore Draft
     initializeAppState();
 
-    // Unregister service workers as clean up
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const reg of registrations) {
-          reg.unregister();
-        }
-      });
-    }
+    // PWA Install listeners
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      console.log('PWA was installed');
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     // Unload Confirmation
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -148,6 +153,8 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('keydown', handleKeyDown);
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
@@ -1121,6 +1128,21 @@ export default function App() {
     }, 1500);
   };
 
+  // PWA Install Prompt Handler
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    
+    // Show the install prompt
+    deferredPrompt.prompt();
+    
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User choice outcome: ${outcome}`);
+    
+    // We've used the prompt, clear it
+    setDeferredPrompt(null);
+  };
+
   // Theme Management
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -1207,6 +1229,17 @@ export default function App() {
               </div>
               
               <div className="utility-actions">
+                {deferredPrompt && (
+                  <button 
+                    className="header-action-btn" 
+                    id="installButton" 
+                    onClick={handleInstallApp}
+                    title="Install App"
+                  >
+                    <i className="fas fa-mobile-screen-button"></i>
+                    <span className="btn-text">Install App</span>
+                  </button>
+                )}
                 <div className="export-dropdown">
                   <button className="header-action-btn" id="exportButton" title="Export Note">
                     <i className="fas fa-download"></i>

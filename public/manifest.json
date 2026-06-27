@@ -1,0 +1,16 @@
+{
+  "short_name": "Audeo",
+  "name": "Audeo Voice Notes",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "display": "standalone",
+  "orientation": "portrait"
+}

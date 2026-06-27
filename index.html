@@ -10,23 +10,16 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg">
     <link rel="apple-touch-icon" href="/icon.svg">
     <script>
-      // Aggressive service worker unregistration to clear previous PWA cache
+      // Register PWA service worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          var unregisteredAny = false;
-          for (var registration of registrations) {
-            registration.unregister();
-            unregisteredAny = true;
-          }
-          if (unregisteredAny) {
-            console.log('Previous Service Worker detected and cleared.');
-            caches.keys().then(function(names) {
-              for (let name of names) caches.delete(name);
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(reg) {
+              console.log('Service Worker registered successfully with scope: ', reg.scope);
+            })
+            .catch(function(err) {
+              console.error('Service Worker registration failed: ', err);
             });
-            setTimeout(function() {
-              window.location.reload();
-            }, 500);
-          }
         });
       }
     </script>
@@ -38,7 +31,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./index.css">
-    <link rel="manifest" href="./manifest.json">
+    <link rel="manifest" href="/manifest.json">
 </head>
   <body>
     <div id="root"></div>
