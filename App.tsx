@@ -50,6 +50,29 @@ export default function App() {
   const titleRef = useRef<HTMLDivElement>(null);
   const polishedRef = useRef<HTMLDivElement>(null);
   const rawRef = useRef<HTMLDivElement>(null);
+  const polishedTabRef = useRef<HTMLButtonElement>(null);
+  const rawTabRef = useRef<HTMLButtonElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 0);
+
+  // Handle window resizing to recalculate tab sizes
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Update tab indicator style dynamically based on active tab dimensions
+  useEffect(() => {
+    const activeBtn = activeTab === 'polished' ? polishedTabRef.current : rawTabRef.current;
+    if (activeBtn) {
+      setIndicatorStyle({
+        left: `${activeBtn.offsetLeft}px`,
+        width: `${activeBtn.offsetWidth}px`,
+        transition: 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+      });
+    }
+  }, [activeTab, windowWidth]);
   
   // Audio API Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1162,13 +1185,15 @@ export default function App() {
             <div className="header-actions-container">
               <div className="tab-navigation-container">
                 <div className="tab-navigation">
-                  <button 
+                   <button 
+                    ref={polishedTabRef}
                     className={`tab-button ${activeTab === 'polished' ? 'active' : ''}`}
                     onClick={() => setActiveTab('polished')}
                   >
                     Polished
                   </button>
                   <button 
+                    ref={rawTabRef}
                     className={`tab-button ${activeTab === 'raw' ? 'active' : ''}`}
                     onClick={() => setActiveTab('raw')}
                   >
@@ -1176,10 +1201,7 @@ export default function App() {
                   </button>
                   <div 
                     className="active-tab-indicator"
-                    style={{
-                      left: activeTab === 'polished' ? '0px' : '82px',
-                      width: activeTab === 'polished' ? '82px' : '65px'
-                    }}
+                    style={indicatorStyle}
                   />
                 </div>
               </div>

@@ -548,9 +548,12 @@ body.light-mode .record-button.recording .record-button-inner { color: white; }
   .note-area { padding: 20px 0 0; }
   .note-header { padding: 0 20px 12px; flex-direction: column; align-items: stretch; gap: 12px; }
   .editor-title { padding: 0; font-size: 20px; margin-bottom: 0; margin-right: 0; text-align: left; }
+  .header-actions-container { flex-direction: column; align-items: stretch; gap: 12px; width: 100%; }
   .tab-navigation-container { width: 100%; }
   .tab-navigation { width: 100%; }
   .tab-button { flex-grow: 1; text-align: center; }
+  .utility-actions { justify-content: center; gap: 8px; width: 100%; }
+  .tag-input-wrapper-main { padding: 12px 20px; }
   .note-content-wrapper { padding: 0 20px 20px; }
   .recording-interface.is-live { padding-left: 15px; padding-right: 15px; } /* Keep existing responsive padding */
   #liveWaveformCanvas { max-width: calc(100% - 30px); height: 60px; }
@@ -727,6 +730,23 @@ body.light-mode .record-button.recording .record-button-inner { color: white; }
   .history-sidebar {
     width: 100%;
     right: -100%;
+  }
+  .recording-controls {
+    gap: 8px;
+    width: 100%;
+    justify-content: space-around;
+  }
+  .action-button {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  .record-button {
+    width: 60px;
+    height: 60px;
+  }
+  .record-button-inner {
+    font-size: 20px;
   }
 }
 
